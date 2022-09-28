@@ -1606,6 +1606,10 @@ Lisp programs can force the template by setting KEYS to a string."
 (defvar org-capture--clipboards nil
   "List various clipboards values.")
 
+(defvar org-capture-keyword-interpolation-regexp
+  "\\(?:\\(\\(?:\\\\\\\\\\)?\\)\\%{\\([^z-a]*?\\)}\\)"
+  "Regular expression used to parse %{KEYWORD} expansions.")
+
 (defun org-capture-fill-template (&optional template initial annotation)
   "Fill a TEMPLATE and return the filled template as a string.
 The template may still contain \"%?\" for cursor positioning.
@@ -1703,6 +1707,18 @@ Expansion occurs in a temporary Org mode buffer."
 		 (insert (format "%%![couldn not insert %s: %s]"
 				 filename
 				 error))))))))
+      ;; exapnd %{KEYWORD} syntax
+      (save-excursion
+        (while (re-search-forward org-capture-keyword-interpolation-regexp
+                                  nil t)
+          (if (not (zerop (length (match-string 1))))
+              (save-excursion (replace-match "" nil nil nil 1))
+            (let ((replacement
+                   (or (org-capture-get (intern (concat ":" (match-string 2))))
+                       "")))
+              (when (functionp replacement)
+                (setq replacement (funcall replacement)))
+              (replace-match (format "%s" replacement))))))
       ;; Mark %() embedded elisp for later evaluation.
       (org-capture-expand-embedded-elisp 'mark)
       ;; Expand non-interactive templates.
